@@ -1,0 +1,10 @@
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example/p","Test":"TestA"}
+{"Time":"2026-01-01T00:00:00Z","Action":"output","Package":"example/p","Test":"TestA","Output":"--- FAIL: TestA\n"}
+{"Time":"2026-01-01T00:00:00Z","Action":"fail","Package":"example/p","Test":"TestA","Elapsed":0.01}
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example/p","Test":"TestB"}
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example/p","Test":"TestB/sub_one"}
+{"Time":"2026-01-01T00:00:00Z","Action":"fail","Package":"example/p","Test":"TestB/sub_one","Elapsed":0.01}
+{"Time":"2026-01-01T00:00:00Z","Action":"fail","Package":"example/p","Test":"TestB","Elapsed":0.01}
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example/p","Test":"TestC"}
+{"Time":"2026-01-01T00:00:00Z","Action":"pass","Package":"example/p","Test":"TestC","Elapsed":0.01}
+{"Time":"2026-01-01T00:00:00Z","Action":"pass","Package":"example/p","Elapsed":0.05}

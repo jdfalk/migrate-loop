@@ -136,3 +136,51 @@ func Read(path string) (*State, error) {
 	s.Phase = p
 	return &s, nil
 }
+
+type ProgressResult struct {
+	IsProgress   bool
+	Oscillation  bool // count equal but set differs
+	AllGreen     bool
+	NowFailing   int
+	NowPassing   []TestID // tests that previously failed and now pass
+	NewlyFailing []TestID // tests that did not previously fail but do now
+}
+
+func DetectProgress(prev, curr []TestID) ProgressResult {
+	prevSet := setOf(prev)
+	currSet := setOf(curr)
+	res := ProgressResult{NowFailing: len(curr)}
+	if len(curr) == 0 {
+		res.IsProgress = true
+		res.AllGreen = true
+		return res
+	}
+	if len(curr) < len(prev) {
+		res.IsProgress = true
+	}
+	for k, id := range prevSet {
+		if _, ok := currSet[k]; !ok {
+			res.NowPassing = append(res.NowPassing, id)
+		}
+	}
+	for k, id := range currSet {
+		if _, ok := prevSet[k]; !ok {
+			res.NewlyFailing = append(res.NewlyFailing, id)
+		}
+	}
+	if len(res.NowPassing) > 0 || len(res.NewlyFailing) > 0 {
+		res.IsProgress = true
+		if len(curr) == len(prev) {
+			res.Oscillation = true
+		}
+	}
+	return res
+}
+
+func setOf(ids []TestID) map[string]TestID {
+	m := make(map[string]TestID, len(ids))
+	for _, id := range ids {
+		m[id.Package+"::"+id.Test] = id
+	}
+	return m
+}

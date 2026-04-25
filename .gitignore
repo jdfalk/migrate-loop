@@ -1,0 +1,5 @@
+/migrate-loop
+/dist/
+*.test
+*.out
+.DS_Store

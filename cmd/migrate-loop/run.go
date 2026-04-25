@@ -55,11 +55,12 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 		wt = &worktree.Worktree{Path: cfg.WorktreeDir, BranchName: "migrate/" + sp.Slug}
 	} else {
+		baseRef := resolveBaseRef(ctx, cfg.SourceRepo)
 		wt, err = worktree.Create(ctx, worktree.Options{
 			SourceRepo:  cfg.SourceRepo,
 			BranchName:  "migrate/" + sp.Slug,
 			WorktreeDir: cfg.WorktreeDir,
-			BaseRef:     "main",
+			BaseRef:     baseRef,
 		})
 		if err != nil {
 			return err
@@ -132,6 +133,26 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 		_ = state.Write(statePath, st)
 	}
+}
+
+// resolveBaseRef picks the base ref for the migrate-loop branch. It prefers
+// origin/main (after a best-effort fetch) so the migration is implemented
+// against the latest remote state, not whatever stale tip happens to be on
+// the user's local main. Falls back to local main if no origin remote is
+// configured (e.g. local-only test repos or pre-push workflows).
+func resolveBaseRef(ctx context.Context, sourceRepo string) string {
+	// Best-effort fetch. Don't hard-fail: a repo with no origin (test fixtures,
+	// offline machines) is still usable; we just branch from local main.
+	if err := exec.CommandContext(ctx, "git", "-C", sourceRepo,
+		"fetch", "origin", "main").Run(); err != nil {
+		// Fall through; rev-parse below decides what's actually available.
+	}
+	// Prefer origin/main if it resolves.
+	if err := exec.CommandContext(ctx, "git", "-C", sourceRepo,
+		"rev-parse", "--verify", "origin/main").Run(); err == nil {
+		return "origin/main"
+	}
+	return "main"
 }
 
 // ensureGitIdentity sets a fallback user.email/user.name in the worktree's

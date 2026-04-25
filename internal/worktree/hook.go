@@ -1,11 +1,11 @@
 package worktree
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 const preCommitScript = `#!/usr/bin/env bash
@@ -53,38 +53,56 @@ case "$msg" in
 esac
 `
 
-// InstallHook writes the pre-commit hook into the worktree's gitdir and
-// creates an empty FROZEN_TESTS.md if missing.
+// HooksDirName is the directory inside the migrate-loop worktree where its
+// hooks live. Pointed at by per-worktree core.hooksPath so the hooks fire
+// only for commits made inside this worktree, not sibling worktrees of the
+// same parent repo.
+const HooksDirName = ".migrate-loop-hooks"
+
+// InstallHook writes the migrate-loop hooks into a per-worktree hooks
+// directory and configures this worktree (only) to use them via
+// core.hooksPath. Sibling worktrees of the same parent repo are unaffected:
+// their commits continue to use the shared (or unset) hooks path.
+//
+// Implementation notes:
+//
+//   - Sets extensions.worktreeConfig=true in the common config (idempotent).
+//     Required for `git config --worktree` to take effect. Does not change
+//     behavior for any worktree that doesn't set per-worktree config.
+//   - Sets core.hooksPath ONLY in this worktree's per-worktree config, so
+//     sibling worktrees keep their default hooks path (typically unset).
+//
+// Also creates an empty FROZEN_TESTS.md at the worktree root if missing —
+// the sanctioned channel for the coder agent to flag a frozen test as wrong.
 func (w *Worktree) InstallHook() error {
-	gitDir, err := w.gitDir()
-	if err != nil {
-		return err
+	ctx := context.Background()
+	// 1. Enable per-worktree config (idempotent; required for --worktree).
+	if err := exec.CommandContext(ctx, "git", "-C", w.Path, "config",
+		"extensions.worktreeConfig", "true").Run(); err != nil {
+		return fmt.Errorf("enable extensions.worktreeConfig: %w", err)
 	}
-	hooksDir := filepath.Join(gitDir, "hooks")
+	// 2. Create hooks directory inside the worktree itself.
+	hooksDir := filepath.Join(w.Path, HooksDirName)
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(preCommitScript), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"),
+		[]byte(preCommitScript), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(hooksDir, "commit-msg"), []byte(commitMsgScript), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(hooksDir, "commit-msg"),
+		[]byte(commitMsgScript), 0o755); err != nil {
 		return err
 	}
+	// 3. Point ONLY this worktree at our hooks via per-worktree config.
+	if err := exec.CommandContext(ctx, "git", "-C", w.Path, "config",
+		"--worktree", "core.hooksPath", hooksDir).Run(); err != nil {
+		return fmt.Errorf("set per-worktree core.hooksPath: %w", err)
+	}
+	// 4. Create FROZEN_TESTS.md if missing.
 	frozen := filepath.Join(w.Path, "FROZEN_TESTS.md")
 	if _, err := os.Stat(frozen); os.IsNotExist(err) {
 		_ = os.WriteFile(frozen, []byte(""), 0o644)
 	}
 	return nil
-}
-
-func (w *Worktree) gitDir() (string, error) {
-	out, err := exec.Command("git", "-C", w.Path, "rev-parse", "--git-common-dir").Output()
-	if err != nil {
-		return "", fmt.Errorf("rev-parse: %w", err)
-	}
-	gd := strings.TrimSpace(string(out))
-	if !filepath.IsAbs(gd) {
-		gd = filepath.Join(w.Path, gd)
-	}
-	return gd, nil
 }

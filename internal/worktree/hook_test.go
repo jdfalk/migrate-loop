@@ -45,6 +45,66 @@ func TestHookRejectsWrongCommitPrefix(t *testing.T) {
 	}
 }
 
+// TestHook_DoesNotAffectSiblingWorktree is the regression guard for the
+// cross-contamination bug: when migrate-loop installed hooks into the
+// common gitdir, sibling worktrees of the same parent repo would get
+// their commits rejected by the test-freeze hook even though they had
+// nothing to do with the migration.
+//
+// With per-worktree core.hooksPath, the migrate-loop hooks fire only for
+// commits made inside the migrate-loop worktree. A sibling worktree of
+// the same parent repo can commit *_test.go files freely.
+func TestHook_DoesNotAffectSiblingWorktree(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	root := t.TempDir()
+	src := filepath.Join(root, "src")
+	mustGit(t, root, "init", src)
+	mustGit(t, src, "config", "user.email", "test@test")
+	mustGit(t, src, "config", "user.name", "test")
+	mustGit(t, src, "commit", "--allow-empty", "-m", "init")
+	mustGit(t, src, "branch", "-M", "main")
+
+	// Create the migrate-loop worktree and install its hooks.
+	mlPath := filepath.Join(root, "ml-wt")
+	mlWT, err := Create(context.Background(), Options{
+		SourceRepo: src, WorktreeDir: mlPath, BranchName: "migrate/demo", BaseRef: "main",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, mlWT.Path, "config", "user.email", "test@test")
+	mustGit(t, mlWT.Path, "config", "user.name", "test")
+	if err := mlWT.InstallHook(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a SIBLING worktree (simulates user's other in-flight work).
+	siblingPath := filepath.Join(root, "sibling-wt")
+	mustGit(t, src, "worktree", "add", siblingPath, "-b", "sibling-feature")
+	mustGit(t, siblingPath, "config", "user.email", "test@test")
+	mustGit(t, siblingPath, "config", "user.name", "test")
+
+	// Try to commit a test file in the sibling — should SUCCEED (no
+	// migrate-loop hook applies). With the buggy common-dir install this
+	// would fail.
+	mustWrite(t, filepath.Join(siblingPath, "y_test.go"), "package y\n")
+	mustGit(t, siblingPath, "add", "y_test.go")
+	out, err := exec.Command("git", "-C", siblingPath, "commit", "-m", "feat: add test").CombinedOutput()
+	if err != nil {
+		t.Fatalf("sibling worktree commit should succeed (migrate-loop hooks must NOT leak):\n%s\nerr: %v", out, err)
+	}
+
+	// And the migrate-loop worktree's hook still fires for its own commits.
+	mustWrite(t, filepath.Join(mlWT.Path, "x_test.go"), "package x\n")
+	mustGit(t, mlWT.Path, "add", "x_test.go")
+	out, err = exec.Command("git", "-C", mlWT.Path, "commit", "-m", "wip(coder-1): try thing").CombinedOutput()
+	if err == nil {
+		t.Fatalf("migrate-loop worktree commit should still be rejected by hook:\n%s", out)
+	}
+}
+
 func setupWorktreeWithHook(t *testing.T) *Worktree {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

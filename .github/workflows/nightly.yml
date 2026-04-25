@@ -1,0 +1,18 @@
+name: nightly-live
+on:
+  schedule:
+    - cron: "13 7 * * *"
+  workflow_dispatch: {}
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      # claude CLI install would go here; until then this job is a placeholder
+      # that exercises the gated test only when the binary + key are available.
+      - run: make test-live
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

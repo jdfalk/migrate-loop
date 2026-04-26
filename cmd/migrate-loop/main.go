@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -15,13 +16,51 @@ import (
 )
 
 // Build-time version metadata. Populated by GoReleaser via -ldflags
-// "-X main.version=... -X main.commit=... -X main.date=...". Defaults
-// below apply for `go build` / `go install` from source.
+// "-X main.version=... -X main.commit=... -X main.date=...". For
+// `go install module@version` builds, versionInfo() falls back to
+// runtime/debug.ReadBuildInfo() so the module version still surfaces.
 var (
 	version = "dev"
 	commit  = "unknown"
 	date    = "unknown"
 )
+
+// versionInfo returns the version, commit, and date strings to display.
+// Resolution order:
+//  1. ldflags-injected vars (set by GoReleaser).
+//  2. runtime/debug.BuildInfo (set by `go install module@vX.Y.Z` and by
+//     `go build` inside a git working tree on Go 1.18+).
+//  3. The "dev"/"unknown" defaults.
+func versionInfo() (v, c, d string) {
+	v, c, d = version, commit, date
+	if v != "dev" && c != "unknown" {
+		// ldflags populated everything; trust them.
+		return
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	if v == "dev" && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		v = info.Main.Version
+	}
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if c == "unknown" && s.Value != "" {
+				c = s.Value
+				if len(c) > 12 {
+					c = c[:12]
+				}
+			}
+		case "vcs.time":
+			if d == "unknown" && s.Value != "" {
+				d = s.Value
+			}
+		}
+	}
+	return
+}
 
 func main() {
 	var cfg Config
@@ -39,9 +78,10 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Printf("migrate-loop %s\n", version)
-		fmt.Printf("  commit: %s\n", commit)
-		fmt.Printf("  built:  %s\n", date)
+		v, c, d := versionInfo()
+		fmt.Printf("migrate-loop %s\n", v)
+		fmt.Printf("  commit: %s\n", c)
+		fmt.Printf("  built:  %s\n", d)
 		fmt.Printf("  go:     %s %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}

@@ -1,0 +1,53 @@
+# file: .github/workflows/release-prod.yml
+# version: 1.0.0
+
+name: Production Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+        default: 'auto'
+      create-draft:
+        description: 'Create as draft release'
+        required: false
+        type: boolean
+        default: false
+      previous-version:
+        description: 'Override previous version for changelog (e.g. v0.1.0). Leave empty for auto-detect.'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Create Production Release
+    uses: jdfalk/ghcommon/.github/workflows/reusable-release.yml@9796749d08eccc90b20b23ab3a97af28a73a14a0 # latest
+    with:
+      release-type: ${{ github.event.inputs.release-type }}
+      prerelease: false
+      draft: ${{ github.event.inputs.create-draft == 'true' }}
+      stable: true
+      go-enabled: true
+      frontend-enabled: false
+      docker-enabled: false
+      previous-version: ${{ github.event.inputs.previous-version }}
+    secrets: inherit

@@ -58,6 +58,16 @@ func (w *Worktree) DiffSummary(ctx context.Context, refspec string) (string, err
 	return captureGit(ctx, w.Path, "diff", "--shortstat", refspec)
 }
 
+// Remove force-removes the git worktree and deletes the local branch.
+// Safe to call even if the worktree or branch doesn't fully exist.
+func Remove(ctx context.Context, sourceRepo, worktreeDir, branchName string) error {
+	// --force allows removal of worktrees with uncommitted changes.
+	_ = runGit(ctx, sourceRepo, "worktree", "remove", "--force", worktreeDir)
+	// Delete the local branch; ignore "not found" errors.
+	_ = runGit(ctx, sourceRepo, "branch", "-D", branchName)
+	return nil
+}
+
 func runGit(ctx context.Context, dir string, args ...string) error {
 	return runGitEnv(ctx, dir, nil, args...)
 }

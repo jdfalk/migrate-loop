@@ -28,6 +28,7 @@ type Config struct {
 	Agent          agent.Agent // injected; defaults to CLIAgent in main()
 	SkipPR         bool        // for tests
 	Resume         bool
+	Overwrite      bool // destroy existing worktree+branch and start fresh
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -55,6 +56,10 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 		wt = &worktree.Worktree{Path: cfg.WorktreeDir, BranchName: "migrate/" + sp.Slug}
 	} else {
+		if cfg.Overwrite {
+			// Destroy the existing worktree and branch so Create starts clean.
+			_ = worktree.Remove(ctx, cfg.SourceRepo, cfg.WorktreeDir, "migrate/"+sp.Slug)
+		}
 		baseRef := resolveBaseRef(ctx, cfg.SourceRepo)
 		wt, err = worktree.Create(ctx, worktree.Options{
 			SourceRepo:  cfg.SourceRepo,

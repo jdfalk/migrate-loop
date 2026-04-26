@@ -28,7 +28,10 @@ func (c *CLIAgent) Run(ctx context.Context, req Request) (Response, error) {
 	if bin == "" {
 		bin = "claude"
 	}
-	args := []string{"-p", "--output-format", "json"}
+	// --bare: skip CLAUDE.md auto-discovery so project-level instructions
+	// ("write PLAN.md then STOP") don't override migrate-loop's prompt.
+	// --dangerously-skip-permissions: agent must write files unattended.
+	args := []string{"-p", "--output-format", "json", "--bare", "--dangerously-skip-permissions"}
 	if len(req.AllowedTools) > 0 {
 		args = append(args, "--allowed-tools", strings.Join(req.AllowedTools, ","))
 	}

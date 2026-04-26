@@ -1,0 +1,34 @@
+# file: .github/workflows/prerelease.yml
+# version: 1.0.0
+
+name: Prerelease on Merge
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+concurrency:
+  group: prerelease-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  prerelease:
+    name: Create Prerelease Build
+    uses: jdfalk/ghcommon/.github/workflows/reusable-release.yml@9796749d08eccc90b20b23ab3a97af28a73a14a0 # latest
+    with:
+      release-type: 'auto'
+      prerelease: true
+      draft: false
+      go-enabled: true
+      frontend-enabled: false
+      docker-enabled: false
+    secrets: inherit

@@ -16,7 +16,7 @@ If the harness gets stuck (tests look wrong, budget exhausted, or persistent sta
 ## Quickstart
 
 ```bash
-go install github.com/jdfalk/migrate-loop/cmd/migrate-loop@latest
+go install github.com/falkcorp/migrate-loop/cmd/migrate-loop@latest
 migrate-loop --spec mymigration.md --budget 50
 ```
 

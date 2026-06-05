@@ -1,4 +1,4 @@
-module github.com/jdfalk/migrate-loop
+module github.com/falkcorp/migrate-loop
 
 go 1.25.0
 

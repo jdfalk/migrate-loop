@@ -23,7 +23,7 @@ permissions:
 jobs:
   prerelease:
     name: Create Prerelease Build
-    uses: falkcorp/github-common/.github/workflows/reusable-release.yml@9796749d08eccc90b20b23ab3a97af28a73a14a0 # latest
+    uses: falkcorp/github-common/.github/workflows/reusable-release.yml@6694e50b2f6564b24cda9b1b78278e9af714c9d9 # latest
     with:
       release-type: 'auto'
       prerelease: true
